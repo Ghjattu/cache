@@ -45,22 +45,18 @@ func (c *Cache) Add(key string, value Value) {
 		c.ll = list.New()
 	}
 
-	// key already exists, update value
-	if element, hit := c.cache[key]; hit {
+	if element, hit := c.cache[key]; hit { // key already exists, update value
 		c.ll.MoveToFront(element)
 		kv := element.Value.(*entry)
 		c.nBytes += int64(value.Len()) - int64(kv.value.Len())
 		kv.value = value
-
-		return
+	} else { // key does not exist, add an item
+		element := c.ll.PushFront(&entry{key, value})
+		c.cache[key] = element
+		c.nBytes += int64(len(key)) + int64(value.Len())
 	}
 
-	// key does not exist, add an item
-	element := c.ll.PushFront(&entry{key, value})
-	c.cache[key] = element
-	c.nBytes += int64(len(key)) + int64(value.Len())
-
-	if c.maxBytes != 0 && c.maxBytes < c.nBytes {
+	for c.maxBytes != 0 && c.maxBytes < c.nBytes {
 		c.RemoveOldest()
 	}
 }
