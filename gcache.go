@@ -2,6 +2,7 @@ package cache
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 )
@@ -33,13 +34,18 @@ var (
 )
 
 // NewGroup creates a new instance of Group
-func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
+func NewGroup(name string, cacheBytes int64, getter Getter) (*Group, error) {
 	if getter == nil {
 		panic("nil Getter")
 	}
 
 	mu.Lock()
 	defer mu.Unlock()
+
+	// Check if the name is already associated with any group.
+	if _, exist := groups[name]; exist {
+		return nil, fmt.Errorf("name %s already exists", name)
+	}
 
 	g := &Group{
 		name:      name,
@@ -48,7 +54,7 @@ func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
 	}
 	groups[name] = g
 
-	return g
+	return g, nil
 }
 
 // GetGroup returns the named group previously created with NewGroup, or
