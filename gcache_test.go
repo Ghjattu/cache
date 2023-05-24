@@ -13,6 +13,15 @@ var slowDB = map[string]string{
 	"Charlotte": "22",
 }
 
+// If cache does not hit, retrieve data from slowDB.
+var f Getter = GetterFunc(func(key string) ([]byte, error) {
+	log.Println("[slowDB] search key: ", key)
+	if v, ok := slowDB[key]; ok {
+		return []byte(v), nil
+	}
+	return nil, fmt.Errorf("%s does not exist", key)
+})
+
 func TestGetter(t *testing.T) {
 	var f Getter = GetterFunc(func(s string) ([]byte, error) {
 		return []byte(s), nil
@@ -25,16 +34,9 @@ func TestGetter(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	// If cache does not hit, retrieve data from slowDB.
-	var f Getter = GetterFunc(func(key string) ([]byte, error) {
-		log.Println("[slowDB] search key: ", key)
-		if v, ok := slowDB[key]; ok {
-			return []byte(v), nil
-		}
-		return nil, fmt.Errorf("%s does not exist", key)
-	})
+	NewGroup("age", 2<<10, f)
+	group := GetGroup("age")
 
-	group := NewGroup("age", 2<<10, f)
 	for k, v := range slowDB {
 		// This group.Get will not hit cache.
 		if view, err := group.Get(k); err != nil || string(view.b) != v {
@@ -48,5 +50,13 @@ func TestGet(t *testing.T) {
 
 	if view, err := group.Get("unknown"); err == nil {
 		t.Fatalf("the value of key=unknown should be empty, but %s got", string(view.b))
+	}
+}
+
+func TestGetWithRepetitiveName(t *testing.T) {
+	NewGroup("age", 2<<10, f)
+	_, err := NewGroup("age", 2<<10, f)
+	if err == nil {
+		t.Error("should get an error, but nil got")
 	}
 }
