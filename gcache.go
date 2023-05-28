@@ -23,9 +23,10 @@ func (f GetterFunc) Get(key string) ([]byte, error) {
 // A Group is a cache namespace and associated data loaded spread over
 // a group of 1 or more machines.
 type Group struct {
-	name      string // Each group has a unique name.
-	getter    Getter
-	mainCache cache
+	name       string // Each group has a unique name.
+	getter     Getter
+	mainCache  cache
+	peerPicker PeerPicker
 }
 
 var (
@@ -67,6 +68,14 @@ func GetGroup(name string) *Group {
 	return g
 }
 
+// RegisterPeerPicker registers a PeerPicker for choosing a remote peer.
+func (g *Group) RegisterPeerPicker(peerPicker PeerPicker) {
+	if g.peerPicker != nil {
+		panic("RegisterPeerPicker called more than once.")
+	}
+	g.peerPicker = peerPicker
+}
+
 // Get gets value for a key from the cache.
 func (g *Group) Get(key string) (ByteView, error) {
 	if key == "" {
@@ -83,7 +92,24 @@ func (g *Group) Get(key string) (ByteView, error) {
 }
 
 func (g *Group) load(key string) (ByteView, error) {
+	if g.peerPicker != nil {
+		if peer, ok := g.peerPicker.PickPeer(key); ok {
+			if value, err := g.getFromPeer(peer, key); err == nil {
+				return value, nil
+			}
+		}
+	}
+
 	return g.getLocally(key)
+}
+
+func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
+	bytes, err := peer.Get(g.name, key)
+	if err != nil {
+		return ByteView{}, err
+	}
+
+	return ByteView{b: bytes}, nil
 }
 
 // getLocally calls getter.get function to get data, and adds it to cache.
